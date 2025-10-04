@@ -248,9 +248,13 @@
             margin-top: 12px;
             padding-top: 12px;
             border-top: 1px solid #e2e8f0;
+        }
+
+        .link-row {
             display: flex;
             gap: 8px;
             align-items: center;
+            margin-bottom: 8px;
         }
 
         .link-input {
@@ -259,6 +263,39 @@
             border: 2px solid #e2e8f0;
             border-radius: 6px;
             font-size: 14px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-label {
+            padding: 8px 16px;
+            background: #a0aec0;
+            color: white;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            display: inline-block;
+        }
+
+        .file-label:hover {
+            background: #718096;
+        }
+
+        .file-name {
+            color: #4a5568;
+            font-size: 12px;
+            margin-top: 4px;
         }
 
         .send-btn {
