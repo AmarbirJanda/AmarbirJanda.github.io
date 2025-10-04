@@ -225,6 +225,25 @@
             border-color: #cbd5e0;
         }
 
+        .visitor-name {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 16px;
+            margin-bottom: 6px;
+        }
+
+        .visitor-info {
+            color: #718096;
+            font-size: 14px;
+            margin-bottom: 3px;
+        }
+
+        .visitor-time {
+            color: #a0aec0;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
         .send-link-section {
             margin-top: 12px;
             padding-top: 12px;
@@ -267,25 +286,6 @@
             color: #38a169;
             font-size: 12px;
             font-weight: 600;
-            margin-top: 8px;
-        }
-
-        .visitor-name {
-            font-weight: 600;
-            color: #2d3748;
-            font-size: 16px;
-            margin-bottom: 6px;
-        }
-
-        .visitor-info {
-            color: #718096;
-            font-size: 14px;
-            margin-bottom: 3px;
-        }
-
-        .visitor-time {
-            color: #a0aec0;
-            font-size: 12px;
             margin-top: 8px;
         }
 
@@ -410,9 +410,8 @@
     </div>
 
     <script type="module">
-        // Firebase configuration - YOU NEED TO REPLACE THESE WITH YOUR OWN
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getDatabase, ref, push, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+        import { getDatabase, ref, push, onValue, remove, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -530,12 +529,31 @@
 
             listElement.innerHTML = visitors.map(visitor => `
                 <div class="visitor-card">
-                    <div class="visitor-name">${visitor.name}</div>
-                    <div class="visitor-info">📧 ${visitor.email}</div>
-                    <div class="visitor-info">📱 ${visitor.phone}</div>
+                    <div class="visitor-name">${escapeHtml(visitor.name)}</div>
+                    <div class="visitor-info">📧 ${escapeHtml(visitor.email)}</div>
+                    <div class="visitor-info">📱 ${escapeHtml(visitor.phone)}</div>
                     <div class="visitor-time">Registered: ${visitor.time}</div>
+                    <div class="send-link-section">
+                        <input 
+                            type="url" 
+                            class="link-input" 
+                            placeholder="Enter property link"
+                            id="link-${visitor.id}"
+                            value="${visitor.propertyLink || ''}"
+                        />
+                        <button class="send-btn" onclick="window.sendPropertyLink('${visitor.id}')">
+                            Send Link
+                        </button>
+                    </div>
+                    ${visitor.linkSent ? '<div class="link-sent">✓ Link sent on ' + new Date(visitor.linkSent).toLocaleString() + '</div>' : ''}
                 </div>
             `).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         window.clearVisitors = async function() {
@@ -562,12 +580,14 @@
                 return;
             }
 
-            const headers = ['Name', 'Email', 'Phone', 'Date/Time'];
+            const headers = ['Name', 'Email', 'Phone', 'Date/Time', 'Property Link', 'Link Sent'];
             const rows = visitors.map(v => [
                 v.name,
                 v.email,
                 v.phone,
-                v.time
+                v.time,
+                v.propertyLink || '',
+                v.linkSent ? new Date(v.linkSent).toLocaleString() : 'No'
             ]);
 
             let csvContent = headers.join(',') + '\n';
@@ -582,6 +602,61 @@
             a.download = `open-house-visitors-${new Date().toISOString().split('T')[0]}.csv`;
             a.click();
             window.URL.revokeObjectURL(url);
+        };
+
+        window.sendPropertyLink = async function(visitorId) {
+            const linkInput = document.getElementById(`link-${visitorId}`);
+            const propertyLink = linkInput.value.trim();
+            
+            if (!propertyLink) {
+                alert('Please enter a property link');
+                return;
+            }
+
+            if (!propertyLink.startsWith('http://') && !propertyLink.startsWith('https://')) {
+                alert('Please enter a valid URL starting with http:// or https://');
+                return;
+            }
+
+            // Find the visitor
+            const visitor = visitors.find(v => v.id === visitorId);
+            if (!visitor) {
+                alert('Visitor not found');
+                return;
+            }
+
+            try {
+                // Update Firebase to mark link as sent
+                await update(ref(database, `visitors/${visitorId}`), {
+                    linkSent: Date.now(),
+                    propertyLink: propertyLink
+                });
+
+                // Create mailto link for email
+                const emailSubject = encodeURIComponent('Property Information You Requested');
+                const emailBody = encodeURIComponent(
+                    `Hi ${visitor.name},\n\nThank you for visiting our open house! Here's the link to the property information:\n\n${propertyLink}\n\nFeel free to reach out if you have any questions!\n\nBest regards`
+                );
+                const mailtoLink = `mailto:${visitor.email}?subject=${emailSubject}&body=${emailBody}`;
+
+                // Create SMS link for phone
+                const smsBody = encodeURIComponent(`Hi ${visitor.name}, thanks for visiting! Here's the property info: ${propertyLink}`);
+                const smsLink = `sms:${visitor.phone}?&body=${smsBody}`;
+
+                // Open email app
+                window.open(mailtoLink, '_blank');
+                
+                // Open SMS app after a short delay
+                setTimeout(() => {
+                    window.open(smsLink, '_blank');
+                }, 1000);
+
+                alert(`Email and SMS apps will open to send the link to ${visitor.name}.\n\nEmail: ${visitor.email}\nPhone: ${visitor.phone}`);
+
+            } catch (error) {
+                console.error('Error sending link:', error);
+                alert('Failed to send link. Please try again.');
+            }
         };
 
         function showSuccess() {
